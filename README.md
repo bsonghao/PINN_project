@@ -92,19 +92,19 @@ $$
 
 The exact analytical solution of Buger's equation is given by [Basdevant et al](https://doi.org/10.1016/0045-7930(86)90036-8):
 
-$$
+```math
 u(x,t) = \frac{-\int_{-\infty}^{+\infty}\sin\Big(\pi(x-\eta)\Big)f\Big(x-\eta\Big)\exp\Big(\frac{-\eta^2}{4\nu t}\Big)d\eta}{\int_{-\infty}^{+\infty}f\Big(x-\eta\Big)\exp\Big(\frac{-\eta^2}{4\nu t}\Big)d\eta},
-$$
+```
 where
-$$
+```math
 f(y) = \exp\Big(-\frac{\cos(\pi y)}{2\pi\nu}\Big)
-$$
+```
 
 The numerator and denominator can be obtained using Hermite-Gauss quadrature rule:
 
-$$
+```math
 \int_{-\infty}^{+\infty}\exp\Big(-x^2\Big)g(x)dx \approx \sum_i^nw_if(x_i),
-$$
+```
 where $x_i$ are the root of the Hermite polynomial: $H_n(x_i)=0,\quad i=1,2,...,n$
 and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
