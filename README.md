@@ -108,3 +108,15 @@ The numerator and denominator can be obtained using Hermite-Gauss quadrature rul
 where $x_i$ are the root of the Hermite polynomial: $H_n(x_i)=0,\quad i=1,2,...,n$
 and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
+# Test results
+
+## Sampling point at the boundary and physics collocation
+<img src="https://github.com/bsonghao/PINN_project/blob/main/results/Collocation_points.png" alt="Description" width="500">
+
+
+## 2D heatmap of the solution
+<img src="https://github.com/bsonghao/PINN_project/blob/main/results/full_solution.png" alt="Description" width="500">
+
+## Solution at time crosssection: $t=0.25,0.50,0.75$
+<img src="https://github.com/bsonghao/PINN_project/blob/main/results/time_cross_section.png" alt="Description" width="500">
+
