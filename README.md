@@ -116,8 +116,10 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
 
 **2D heatmap of the solution**
+
 <img src="https://github.com/bsonghao/PINN_project/blob/main/results/full_solution.png" alt="Description" width="500">
 
 **Solution at time crosssection: $t=0.25,0.50,0.75$**
+
 <img src="https://github.com/bsonghao/PINN_project/blob/main/results/time_cross_section.png" alt="Description" width="500">
 
