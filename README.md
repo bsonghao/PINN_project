@@ -111,6 +111,7 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 # Test results
 
 **Sampling point at the boundary and physics collocation**
+
 <img src="https://github.com/bsonghao/PINN_project/blob/main/results/Collocation_points.png" alt="Description" width="500">
 
 
