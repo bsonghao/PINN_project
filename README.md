@@ -80,14 +80,47 @@ $$
 
 with $\{y_n\}$ obtained from Latin Hypercube Sampling ($N_{int}=10000$), $\{t_{n,-1}\}$, $\{t_{n,1}\}$ and $\{x_n\}$ obtained from random sampling ($N_{sb,-1} + N_{sb, 1} + N_{tb}=100$).
 
-$$
-L_{int}(\theta) = \frac{1}{N_{int}}\sum_{i=1}^{N_{int}}r_{int,\theta}^2(y_n), \quad
-L_{sb}(\theta) = \frac{1}{N_{sb}}\sum_{i=1}^{N_{sb}}r_{sb,\theta}^2(t_n,-1) + \frac{1}{N_{sb}}\sum_{i=1}^{N_{sb}}r_{sb,\theta}^2(t_n,1), \quad
-L_{tb}(\theta) = \frac{1}{N_{tb}}\sum_{i=1}^{N_{tb}}r_{tb,\theta}^2(x_n)
-$$
 
+**3. FBPINN solution**
 
-**3. Compare with the exact anlytical solution**
+As we can see in the simple PINN solution, there is huge difference with the exact solution at the interface where there are rapid (discontinuous) phase changes. This problem caused by the high freqency bias of PINN which is general feature of neural networks.
+
+To address this issue, we introduce the finite basis physics informed neural networks (FBPINN) approach described in:
+
+Moseley, B., Markham, A., & Nissen-Meyer, T. (2023). Finite basis physics-informed neural networks (FBPINNs): a scalable domain decomposition approach for solving differential equations: B. Moseley et al. Advances in Computational Mathematics, 49(4), 62.
+[https://link.springer.com/article/10.1007/s10444-023-10065-9](https://link.springer.com/article/10.1007/s10444-023-10065-9)
+
+We introduce the FBPINN ansatz to approximate the exact solution:
+
+```math
+u(\bf{x};\theta) = \mathit{C}\left(\overline{NN}(\bf{x};\theta)\right),
+```
+where
+
+```math
+\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X,t)\circ NN_i(X;\theta_i) \circ \text{norm}_i(x,t); \quad X[1] := x,X[2] := t
+```
+and $\mathit{C}$ is a constraining operator which adds the "hard constraints" boundary condition and can be treated as the additional forward layer of the neural network.
+
+In our specific case:
+
+```math
+\mathit{C}\left(\overline{NN}(X;\theta)\right) = -\sin(\pi x) + \tanh(x+1)\tanh(x-1)\overline{NN}(x,t;\theta)
+```
+$w(X)$ is the window function that confined the input vector locally with in within the subdomain.
+
+```math
+\begin{aligned}
+w_i(X) = \prod_{j=1}^{2}\phi\left(\frac{X[j]-a^j_i}{\sigma^j_i}\right)\phi\left(\frac{b^j_i-X[j]}{\sigma^j_i}\right)
+\end{aligned}
+```
+where $\phi(x) = \frac{1}{1+e^{-x}}$, $a^j_i$, $b^j_i$ denote the midepoint of the left and right overlapping regions and $\sigma^j_i$ is a set of parameters defined such that the window function is zero outside the overlap region.
+
+* By taking the "divide and conquer" approach, the FBPINN transformed the global optimization problem into many coupled local optimization problems
+
+* By normalizing each subdomain input, FBPINN approach effectively scales each local problem from a high frequency problem to a lower frequency problem.
+
+**4. Compare with the exact anlytical solution**
 
 The exact analytical solution of Buger's equation is given by [Basdevant et al](https://doi.org/10.1016/0045-7930(86)90036-8):
 
@@ -107,7 +140,10 @@ The numerator and denominator can be obtained using Hermite-Gauss quadrature rul
 where $x_i$ are the root of the Hermite polynomial: $H_n(x_i)=0,\quad i=1,2,...,n$
 and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
+
 # Test results
+
+## PINN result
 
 **Sampling point at the boundary and physics collocation**
 
@@ -124,4 +160,6 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 **Solution at time crosssection: $t=0.25,0.50,0.75$**
 
 <img src="https://github.com/bsonghao/PINN_project/blob/main/results/time_cross_section.png" alt="Description" width="500">
+
+## FBPINN results
 
