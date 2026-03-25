@@ -1,6 +1,7 @@
 import torch
 import torch.optim as optim
 import numpy as np
+import pandas as pd
 
 from PINN import PINN
 from exact_solution import exact_solution
@@ -10,10 +11,10 @@ def main():
     # input parameter for PINN
 
     # collocation parameters
-    n_int, n_sb = 10000, 100
-    n_tb = 200-n_sb
+    n_int, n_sb = 10000, 50
+    n_tb = 100-n_sb
     # NN parameters
-    neurons, n_hidden = 20, 9
+    neurons, n_hidden = 20, 9 # 20 neurons per hidden layer and 7 hidden layers (9 layers in total)
 
     # physics domain
     domain = torch.tensor([[0., 1.], # time domain
@@ -25,7 +26,7 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 1000
+    n_epochs = 100
 
 
     # PINN training
@@ -42,16 +43,17 @@ def main():
         # ADAM optimizer
         optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
                                     lr=float(0.001))
-        hist = model.fit(num_epochs=n_epochs,
+        loss = model.fit(num_epochs=n_epochs,
                     optimizer=optimizer_LBFGS,
                     verbose=True)
         # save the model after training
         model.save_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/PINN_burger.th")
     else:
         model.load_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/PINN_burger.th")
+        loss = pd.read_json("loss_function.json")
 
     # plot results
-    plotting(model, domain)
+    plotting(model, loss, domain)
 
     return
 

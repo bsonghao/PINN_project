@@ -19,7 +19,7 @@ class NeuralNet(nn.Module):
         neurons: Number of hidden layer dimension
         retrain_seed: random seed for initial weights
         """
-        # Activation function
+        # Activation function (hyperbolic tangent)
         activation = nn.Tanh
 
         self.retrain_seed = retrain_seed
@@ -30,7 +30,7 @@ class NeuralNet(nn.Module):
         self.fch = nn.Sequential(*[
             nn.Sequential(*[
             nn.Linear(neurons, neurons),
-            activation()]) for _ in range(n_hidden_layers - 1)])
+            activation()]) for _ in range(n_hidden_layers)])
 
         self.fce = nn.Linear(neurons, output_dimension)
 
@@ -266,5 +266,11 @@ class PINN(object):
                 # update weights
                 optimizer.step(closure=closure)
                 break
+
+
+        # store loss function data a json
+        import pandas as pd
+        df = pd.DataFrame(history)
+        df.to_json("loss_function.json")
 
         return history
