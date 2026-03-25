@@ -22,9 +22,9 @@ and $\nu=\frac{0.01}{\pi}$ is a parameter known as viscosity.
 **2. PINN solution of the problem**:
 
 We introduce neural networks $u(x,t;\theta)$ to approximate the solution of the Burger's equation:
-$$
+math```
 u(x,t;\theta)\approx u(x,t)
-$$
+```
 
 To solve the problem, we minize the loss function $L(\theta)$:
 
@@ -57,7 +57,7 @@ $L(\theta) = L_{int}(\theta) + L_{sb}(\theta) + L_{tb}(\theta)$
 ```math
 \begin{aligned}
 &L_{tb}(\theta) = \frac{1}{N_{tb}}\sum_{n=1}^{N_{tb}}r_{tb}^2(x_n;\theta),\\
-&t_{tb}(x_n;\theta) = u(0,x_n;\theta) + sin(\pi x_n).
+&r_{tb}(x_n;\theta) = u(0,x_n;\theta) + sin(\pi x_n).
 \end{aligned}
 ```   
        
@@ -114,6 +114,9 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
 <img src="https://github.com/bsonghao/PINN_project/blob/main/results/Collocation_points.png" alt="Description" width="500">
 
+**Loss function for training**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/main/results/loss_function.png" alt="Description" width="500">
 
 **2D heatmap of the solution**
 
