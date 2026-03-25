@@ -98,9 +98,12 @@ u(\bf{x};\theta) = \mathit{C}\left(\overline{NN}(\bf{x};\theta)\right),
 where
 
 ```math
-\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X,t)\circ NN_i(X;\theta_i) \circ \text{norm}_i(x,t); \quad X[1] := x,X[2] := t
+\begin{aligned}
+&\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X,t)\circ NN_i(X;\theta_i) \circ \text{norm}_i(x,t), \\
+&X[1] := x,X[2] := t.
+\end{aligned}
 ```
-and $\mathit{C}$ is a constraining operator which adds the "hard constraints" boundary condition and can be treated as the additional forward layer of the neural network.
+$\mathit{C}$ is a constraining operator which adds the "hard constraints" boundary condition and can be treated as the additional forward layer of the neural network.
 
 In our specific case:
 
