@@ -9,7 +9,7 @@ Raissi, Maziar, Paris Perdikaris, and George E. Karniadakis. "Physics-informed n
 
 Burger's equation along with Dirichet boundary conditions reads as
 
-```math
+math```
 \begin{aligned}
 &u_t + uu_x - \nu u_{xx} = 0,\quad x\in[-1, 1], \quad t\in[0,1],\\
 &u(0,x) = -\sin(\pi x),\\
