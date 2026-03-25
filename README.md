@@ -7,9 +7,8 @@ Raissi, Maziar, Paris Perdikaris, and George E. Karniadakis. "Physics-informed n
 
 **1. Description of the problem**:
 
-Burger's equation along with Dirichet boundary conditions reads as
-
-math```
+Burger's equation along with Dirichet boundary conditions reads as:
+```math
 \begin{aligned}
 &u_t + uu_x - \nu u_{xx} = 0,\quad x\in[-1, 1], \quad t\in[0,1],\\
 &u(0,x) = -\sin(\pi x),\\
@@ -22,7 +21,7 @@ and $\nu=\frac{0.01}{\pi}$ is a parameter known as viscosity.
 **2. PINN solution of the problem**:
 
 We introduce neural networks $u(x,t;\theta)$ to approximate the solution of the Burger's equation:
-math```
+```math
 u(x,t;\theta)\approx u(x,t)
 ```
 
