@@ -99,7 +99,7 @@ where
 
 ```math
 \begin{aligned}
-&\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X,t)\circ NN_i(X;\theta_i) \circ \text{norm}_i(x,t), \\
+&\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X)\circ NN_i(X;\theta_i) \circ \text{norm}_i(X), \\
 &X[1] := x,X[2] := t.
 \end{aligned}
 ```
@@ -108,7 +108,7 @@ $\mathit{C}$ is a constraining operator which adds the "hard constraints" bounda
 In our specific case:
 
 ```math
-\mathit{C}\left(\overline{NN}(X;\theta)\right) = -\sin(\pi x) + \tanh(x+1)\tanh(x-1)\overline{NN}(x,t;\theta)
+\mathit{C}\left(\overline{NN}(X;\theta)\right) = -\sin(\pi x) + \tanh(x+1)\tanh(x-1)\overline{NN}(X;\theta)
 ```
 $w(X)$ is the window function that confined the input vector locally with in within the subdomain.
 
@@ -117,7 +117,7 @@ $w(X)$ is the window function that confined the input vector locally with in wit
 w_i(X) = \prod_{j=1}^{2}\phi\left(\frac{X[j]-a^j_i}{\sigma^j_i}\right)\phi\left(\frac{b^j_i-X[j]}{\sigma^j_i}\right)
 \end{aligned}
 ```
-where $\phi(x) = \frac{1}{1+e^{-x}}$, $a^j_i$, $b^j_i$ denote the midepoint of the left and right overlapping regions and $\sigma^j_i$ is a set of parameters defined such that the window function is zero outside the overlap region.
+where $\phi(x) = \frac{1}{1+e^{-x}}$, $a^j_i$, $b^j_i$ denote the midpoint of the left and right overlapping regions and $\sigma^j_i$ is a set of parameters defined such that the window function is zero outside the overlap region.
 
 * By taking the "divide and conquer" approach, the FBPINN transformed the global optimization problem into many coupled local optimization problems
 
