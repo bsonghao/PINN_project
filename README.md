@@ -99,7 +99,7 @@ where
 
 ```math
 \begin{aligned}
-&\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}(X)\circ NN_i(X;\theta_i) \circ \text{norm}_i(X), \\
+&\overline{NN}(X;\theta) = \sum_iw_i(X)\cdot\text{unnorm}\circ NN_i(X;\theta_i) \circ \text{norm}_i(X), \\
 &X[1] := x,X[2] := t.
 \end{aligned}
 ```
