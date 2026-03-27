@@ -265,8 +265,6 @@ class PINN(object):
                     return loss
                 # update weights
                 optimizer.step(closure=closure)
-                break
-
 
         # store loss function data a json
         import pandas as pd
