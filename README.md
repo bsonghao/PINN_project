@@ -166,3 +166,19 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
 ## FBPINN results
 
+**Sampling point at the boundary and physics collocation**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_collocation_points.png" alt="Description" width="500">
+
+**Loss function for training**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_loss_function.png" alt="Description" width="500">
+
+**2D heatmap of the solution**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_full_solution.png" alt="Description" width="500">
+
+**Solution at time crosssection: $t=0.25,0.50,0.75$**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_time_cross_section.png" alt="Description" width="500">
+
