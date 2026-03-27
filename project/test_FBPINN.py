@@ -52,18 +52,7 @@ def main():
     data=  iter(model.training_set)
     input, output = next(data)
 
-    # import matplotlib.pyplot as plt
-    # plt.figure(figsize=(16, 8), dpi=150)
-    # plt.scatter(input[:, 0].detach().numpy(), input[:, 1].detach().numpy(), label="collocation Points", alpha=.5)
-    # plt.xlabel("t",fontsize=40)
-    # plt.ylabel("x",fontsize=40)
-    # plt.legend(fontsize=20)
-    # plt.xticks(fontsize=20)
-    # plt.yticks(fontsize=20)
-    # plt.savefig("FBPINN_collocation_points.png")
-    # plt.show()
-    # os._exit(0)
-    if True:
+    if False:
         # LBFGS optimizer
         optimizer_LBFGS = optim.LBFGS(model.approximate_solution.parameters(),
                                   lr=float(0.5),

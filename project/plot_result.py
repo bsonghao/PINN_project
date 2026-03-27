@@ -124,7 +124,7 @@ def plotting_FBPINN(model, loss, domain, num_grid=1000):
     plt.title("Plot of loss function", fontsize=40)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
-    plt.savefig("loss_function.png")
+    plt.savefig("FBPINN_loss_function.png")
     plt.show()
     # plot sampling points
 
