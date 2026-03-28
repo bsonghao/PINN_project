@@ -311,7 +311,7 @@ if __name__ == '__main__':
                            dimensions = 2,
                            num_subdomains = [2, 3],
                            ranges = [(0, 1), (-1 ,1)],
-                           overlap = 0.1,
+                           overlap = 0.2,
                            overlap_mode = "absolute")
 
     print_subdomains(subdomains, dimensions=2)
