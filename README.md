@@ -170,6 +170,10 @@ and $w_i = \frac{2^{n-1}n!\sqrt{\pi}}{n^2H^2_{n-1}(x_i)}$
 
 <img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_collocation_points.png" alt="Description" width="500">
 
+**Plot of window function ($2\times3$ subdomain, 0.4 overlap )**
+
+<img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/plot_domain.png" alt="Description" width="500">
+
 **Loss function for training**
 
 <img src="https://github.com/bsonghao/PINN_project/blob/FBPINN/results/FBPINN_loss_function.png" alt="Description" width="500">
