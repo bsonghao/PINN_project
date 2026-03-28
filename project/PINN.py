@@ -239,7 +239,7 @@ class PINN(object):
         if verbose:
             print("Total loss: ", round(loss.item(), 4), "| Physics Loss: ", round(loss_p.item(), 4), "| Boundary Loss: ", round(loss_b.item(), 4))
 
-        return loss, loss_b, loss_p
+        return loss, loss_p, loss_b
 
     def fit(self, num_epochs, optimizer, verbose=True):
         """train PINN"""

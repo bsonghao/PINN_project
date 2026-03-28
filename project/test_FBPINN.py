@@ -13,16 +13,16 @@ def main():
     # input parameter for PINN
 
     # collocation parameters
-    n_sample = 10000
+    n_sample = 40000
 
     # NN parameters
-    neurons, n_hidden = 20, 3 # 20 neurons per hidden layer and 7 hidden layers (9 layers in total)
+    neurons, n_hidden = 16, 2 # 20 neurons per hidden layer and 7 hidden layers (9 layers in total)
 
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
     num_grid = [2, 3]
-    overlap = 0.1
+    overlap = 0.2
 
     # ── Build 2*3 block overlapping 2-D subdomains on [0, 1]x[-1, 1]
 
@@ -42,15 +42,11 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 10
+    n_epochs = 50000
 
 
     # FBPINN training
     model = FBPINN(subdomains, n_sample, neurons, n_hidden, n_batches, nu)
-
-    # plot collocation points
-    data=  iter(model.training_set)
-    input, output = next(data)
 
     if False:
         # LBFGS optimizer
@@ -65,16 +61,18 @@ def main():
         optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
                                     lr=float(0.001))
         loss = model.fit(num_epochs=n_epochs,
-                    optimizer=optimizer_LBFGS,
+                    optimizer=optimizer_ADAM,
                     verbose=True)
         # save the model after training
         model.save_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
     else:
         model.load_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
-        loss = pd.read_json("FBPINN_loss_function.json")
+        loss = pd.read_json("FBPINN_loss_function.json").sort_index().T
+        # print(loss)
+        # os._exit(0)
 
     # plot results
-    plotting_FBPINN(model, loss, domain)
+    plotting_FBPINN(model, loss, domain, num_grid=400)
 
 
     return

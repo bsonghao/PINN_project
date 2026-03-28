@@ -173,7 +173,7 @@ class FBPINN(object):
         # mean square loss function
         self.loss = nn.MSELoss()
 
-        self.training_set = self.sample_subdomain()
+        self.assemble_datasets()
 
         self.nu = nu # viscocity (model parameter)
 
@@ -190,11 +190,24 @@ class FBPINN(object):
         self.approximate_solution.eval()
         return
 
-    def convert(self, sequence, subdomain):
+    def convert(self, sequence, domain, subdomain_flag=False):
         """rescale the LHS sampled sequence within the domain bounds"""
-        subdomain_bound = torch.cat([subdomain["extended_min"].reshape(-1,1), subdomain["extended_max"].reshape(-1,1)], axis=1)
-        assert (sequence.shape[1] == subdomain_bound.shape[0])
-        return sequence * (subdomain_bound[:, 1] - subdomain_bound[:, 0]) + subdomain_bound[:,0]
+        if subdomain_flag:
+            domain = torch.cat([domain["extended_min"].reshape(-1,1), domain["extended_max"]].reshape(-1,1), axis=1)
+        else:
+            pass
+        assert (sequence.shape[1] ==  domain.shape[0])
+        return sequence *  (domain[:, 1] - domain[:, 0]) + domain[:,0]
+
+    def assemble_datasets(self):
+        """
+        assemble datasets
+        """
+        # input, output =  self.sample_subdomain()
+        input, output =  self.sample_domain(torch.tensor([[0, 1],[-1, 1]]))
+        self.training_set = DataLoader(torch.utils.data.TensorDataset(input, output), batch_size=int(self.n_sample/self.n_batches), shuffle=False)
+
+        return
 
     def sample_subdomain(self):
         """
@@ -211,9 +224,17 @@ class FBPINN(object):
         input = torch.cat(input_list, axis=0)
         output = torch.zeros((input.shape[0], 1))
 
-        training_set = DataLoader(torch.utils.data.TensorDataset(input, output), batch_size=int(self.n_sample/self.n_batches), shuffle=False)
+        return input, output
 
-        return training_set
+    def sample_domain(self, domain):
+        """
+        sample the whole domain globally
+        """
+        sequence = torch.from_numpy(self.LHSeng.random(self.n_sample)).float()
+        input = self.convert(sequence, domain)
+        output = torch.zeros((input.shape[0], 1))
+
+        return input, output
 
 
     def compute_loss(self, training_data, verbose=True):
@@ -257,19 +278,20 @@ class FBPINN(object):
                     optimizer.zero_grad()
                     # compute loss
                     training_data = (inp_train, u_train)
-                    loss = self.compute_loss(training_data, verbose=verbose)
+                    PDE_loss = self.compute_loss(training_data, verbose=verbose)
                     # store loss
-                    history["loss"].append(loss.item())
+                    history["loss"].append(PDE_loss.item())
                     # back propagation
-                    loss.backward()
-                    return loss
+                    PDE_loss.backward()
+                    return PDE_loss
                 # update weights
                 optimizer.step(closure=closure)
 
-        # store loss function data a json
+        # store loss function data to json file
         import pandas as pd
         df = pd.DataFrame(history)
-        df.to_json("FBPINN_loss_function.json")
+        df.sort_index().to_json("FBPINN_loss_function.json", orient='index')
+        # df.to_json("FBPINN_loss_function.json")
 
         return history
 

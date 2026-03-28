@@ -3,7 +3,7 @@ import torch as torch
 import matplotlib.pyplot as plt
 from exact_solution import exact_solution
 
-def plotting_PINN(model, loss, domain, num_grid=1000):
+def plotting_PINN(model, loss, domain, num_grid=400):
     """
     plot the results for PINN
     """
