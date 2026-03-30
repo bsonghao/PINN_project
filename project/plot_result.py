@@ -151,9 +151,9 @@ def plotting_FBPINN(model, loss, domain, num_grid=1000):
     t = np.linspace(t_lo, t_hi, num_grid)
     x = np.linspace(x_lo, x_hi, num_grid)
     t, x = np.meshgrid(t, x)
-
+    active_sites = np.arange(len(model.subdomains))
     inputs = torch.from_numpy(np.stack([t.flatten(), x.flatten()], axis=-1)).float()
-    output = model.approximate_solution(inputs).reshape((num_grid, num_grid))
+    output = model.approximate_solution(inputs, active_sites).reshape((num_grid, num_grid))
     exact_output = exact_solution(inputs).reshape((num_grid, num_grid))
 
     fig, axs = plt.subplots(1, 3, figsize=(40, 8), dpi=150)
@@ -198,7 +198,7 @@ def plotting_FBPINN(model, loss, domain, num_grid=1000):
         x[:,0] = t_cs
         x_lo, x_hi = domain[1]
         x[:,1] = torch.linspace(x_lo, x_hi, num_grid)
-        u_pinn = model.approximate_solution(x).reshape(-1, )
+        u_pinn = model.approximate_solution(x, active_sites).reshape(-1, )
         u_exact = exact_solution(x).reshape(-1,)
         axs[i].plot(x[:,1].detach().numpy(), u_pinn.detach().numpy(), label="prediction", color="red", linestyle="--", linewidth=10, alpha=.5)
         axs[i].plot(x[:,1].detach().numpy(), u_exact.detach().numpy(), label="exact", color="blue", linestyle="-", linewidth=10, alpha=.5)
