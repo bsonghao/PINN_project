@@ -142,7 +142,6 @@ class SequentialScheduler(BaseScheduler):
         m = self.manager
 
         # Record losses for active subdomains
-        print(losses)
         for idx in m.get_active_indices():
             if idx in losses:
                 m.record_loss(idx, losses[idx])

@@ -14,7 +14,7 @@ def main():
     # input parameter for PINN
 
     # collocation parameters
-    n_sample = 60000
+    n_sample = 40000
     input_dimension = 2
 
     # NN parameters
@@ -23,15 +23,26 @@ def main():
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
-    num_grid = [3, 2]
-    overlap = 0.2
+    num_grid = [3, 3]
+    overlap = 0.1
+
+    # viscosity parameter
+    nu = 0.01 / np.pi
+
+    # parameters for training
+    # batch parameters
+    n_batches = 1
+    # number of epochs
+    n_epochs = 90000
+
 
     # parameters for scheduler
-    activation_interval = 20000
-    fixed_after_epochs  = 40000
+    global_flag = False
+    activation_interval = 3000
+    fixed_after_epochs  = 3000
     convergence_tol     = 1e-8
     convergence_window  = 5
-    num_per_column      = num_grid[0]
+    num_per_column      = num_grid[1]
     # ── Build 2*3 block overlapping 2-D subdomains on [0, 1]x[-1, 1]
 
     subdomains =  generate_rectangular_bounds(
@@ -73,14 +84,7 @@ def main():
             # num_per_column      = num_grid[1]
         # )
 
-    # viscosity parameter
-    nu = 0.01 / np.pi
 
-    # parameters for training
-    # batch parameters
-    n_batches = 1
-    # number of epochs
-    n_epochs = 1000
 
 
     # FBPINN training
@@ -97,36 +101,45 @@ def main():
                    num_per_column,
                    SubdomainStateManager,
                    ColumnScheduler)
-
+    # print(f"model layers,\n{model.approximate_solution}")
     # os._exit(0)
 
     if True:
-        # LBFGS optimizer
-        # optimizer_LBFGS = optim.LBFGS(model.approximate_solution.parameters(),
-                                  # lr=float(0.5),
-                                  # max_iter=50000,
-                                  # max_eval=50000,
-                                  # history_size=150,
-                                  # line_search_fn="strong_wolfe",
-                                  # tolerance_change=1.0 * np.finfo(float).eps)
-        # ADAM optimizer
-        # optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
-                                    # lr=float(0.001))
-        # loss = model.fit(num_epochs=n_epochs,
-                    # optimizer=optimizer_ADAM,
-                    # verbose=True)
-        loss = model.fit_subdomain(num_epochs=n_epochs,
+        if global_flag:
+            # LBFGS optimizer
+            # optimizer_LBFGS = optim.LBFGS(model.approximate_solution.parameters(),
+                                      # lr=float(0.5),
+                                      # max_iter=50000,
+                                      # max_eval=50000,
+                                      # history_size=150,
+                                      # line_search_fn="strong_wolfe",
+                                      # tolerance_change=1.0 * np.finfo(float).eps)
+            # ADAM optimizer
+            optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
+                                        lr=float(0.001))
+            loss = model.fit(num_epochs=n_epochs,
+                        optimizer=optimizer_ADAM,
+                        verbose=True)
+            # store loss function data
+            df = pd.DataFrame(loss)
+            df.to_json("local_FBPINN_loss_function.json")
+        else:
+            loss = model.fit_subdomain(num_epochs=n_epochs,
                                    optimizer= optim.Adam,
                                    verbose=True)
+            # store loss function data
+            df = pd.DataFrame(loss)
+            df.to_json("local_FBPINN_loss_function.json")
         # save the model after training
         model.save_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
     else:
         model.load_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
-        loss = pd.read_json("FBPINN_loss_function.json").sort_index().T
+        loss = pd.read_json("FBPINN_loss_function.json").sort_index()
         # print(loss)
         # os._exit(0)
 
     # plot results
+    model.approximate_solution.eval()
     plotting_FBPINN(model, loss, domain, num_grid=400)
 
 

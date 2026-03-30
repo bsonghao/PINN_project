@@ -11,62 +11,83 @@ from PINN import PINN, NeuralNet
 from generate_bound import generate_rectangular_bounds, print_subdomains
 
 
-def norm_i(X: torch.Tensor, sub: dict) -> torch.Tensor:
+class norm(nn.Module):
     """
-    Map X ∈ [x_min, x_max]  →  [0, 1]  (per dimension).
-    X : (N, D)
-    """
-    return (X - sub["center"]) / sub["width"]  + 0.5        # (N, D)
-
-
-
-class Unnorm(nn.Module):
-    """
-    Learnable affine: y_out = scale * y_nn + shift
+    x_out = (x-x_mean)/x_std
     One scalar pair shared across all subnets
     (can also be per-subnet).
     """
-    def __init__(self, out_dim: int = 1):
-        super().__init__()
-        #  The scaling parameter is initialized to a tensor of ones, meaning that initially, the output is not scaled.
-        #  During training, this parameter will be updated to best fit the training data.
-        self.scale = nn.Parameter(torch.ones(out_dim))
-        # The shift paramter is initialized to a tensor of zero, meaning that initially, the output is not shifted.
-        # During training, this paramter will be updated to best fit the training data.
-        self.shift = nn.Parameter(torch.zeros(out_dim))
+    def __init__(self):
+        super(norm, self).__init__()
+
+    def forward(self, X: torch.tensor) -> torch.tensor:
+        """
+        Map X ∈ [x_min, x_max]  →  [-1, 1]  (per dimension).
+        X : (N, D)
+        """
+        x_mu = torch.mean(X)
+        x_std = torch.std(X)
+        return (X - x_mu) / x_std        # (N, D)
+
+
+class unnorm(nn.Module):
+    """
+    y_out = (y_nn-y_nn_mean)/y_nn_std
+    One scalar pair shared across all subnets
+    (can also be per-subnet).
+    """
+    def __init__(self):
+        super(unnorm, self).__init__()
+
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
-        return self.scale * y + self.shift
+        y_mu = torch.mean(y)
+        y_std = torch.std(y)
+        return (y - y_mu) / y_std        # (N, D)
 
-
-def window_i(X: torch.Tensor, sub: dict) -> torch.Tensor:
+class window_i(nn.Module):
     """
-    Smooth bump window based on a product of 1-D sigmoids:
-
-        w_i(x) = σ(s·(x - x_min)) · σ(s·(x_max - x))
-
-    where s controls steepness (overlap controls effective width).
-    Returns shape (N, 1) — scalar weight per point.
+    window function for FBPINN
     """
-    s     = 4.0 / (2*sub["overlap"] * sub["width"] + 1e-8)    # steepness
-    left  = torch.sigmoid( s * (X - sub["core_min"]))        # (N, D)
-    right = torch.sigmoid( s * (sub["core_max"]- X))        # (N, D)
-    w     = (left * right).prod(dim=-1, keepdim=True)  # product over dims → (N,1)
-    return w
+    def __init__(self, sub):
+        super().__init__()
+        self.sub = sub
 
-def constraint_layer(X, NN):
-    """
-    Layer that implement hard BC constraint
-    f(u) = -sin(pi*x) + tanh(x+1)tanh(x-1)*NN
-    """
-    output = -torch.sin(np.pi*X[:,1]).reshape(-1,1)
+    def forward(self, X: torch.Tensor) -> torch.Tensor:
+        """
+        Smooth bump window based on a product of 1-D sigmoids:
 
-    factor = torch.tanh(X[:,1] + 1.) * torch.tanh(X[:,1] - 1.) * torch.tanh(X[:,0])
+            w_i(x) = σ(s·(x - x_min)) · σ(s·(x_max - x))
+
+        where s controls steepness (overlap controls effective width).
+        Returns shape (N, 1) — scalar weight per point.
+        """
+        sub = self.sub
+        s     = 2.0 / (2*sub["overlap"] * sub["width"] + 1e-8)    # steepness
+        left  = torch.sigmoid( s * (X - sub["core_min"]))        # (N, D)
+        right = torch.sigmoid( s * (sub["core_max"]- X))        # (N, D)
+        w     = (left * right).prod(dim=-1, keepdim=True)  # product over dims → (N,1)
+        return w
 
 
-    output +=  factor.reshape(-1, 1) * NN
-    return output
+class constraint_layer(nn.Module):
+    """layer the inforce the hard constraints for BC"""
+    def __init__(self):
+        super(constraint_layer, self).__init__()
 
+    def forward(self, X:torch.tensor, out:torch.tensor) -> torch.tensor:
+        """
+        Layer that implement hard BC constraint
+        f(u) = -sin(pi*x) + tanh(x+1)tanh(x-1)*tanh(t) * NN
+        """
+        output = -torch.sin(np.pi*X[:,1]).reshape(-1,1)
+
+        factor = torch.tanh(X[:,1] + 1.) * torch.tanh(X[:,1] - 1.) * torch.tanh(X[:,0])
+
+
+        output +=  factor.reshape(-1, 1) * out
+
+        return output
 
 class FBPINN_ansatz(nn.Module):
     """
@@ -100,8 +121,21 @@ class FBPINN_ansatz(nn.Module):
             for _ in subdomains
         ])
 
-        # shared unnorm layer  (can be per-subnet: nn.ModuleList of Unnorm)
-        self.unnorm = Unnorm(out_dim)
+        # window function layer
+        self.window = nn.ModuleList([
+            window_i(sub)
+            for sub in subdomains
+        ])
+
+        # norm
+        self.norm = norm()
+
+        # unnorm layer  (can be per-subnet: nn.ModuleList of Unnorm)
+        self.unnorm = unnorm()
+
+        # constraint layer
+        self.constraint_layer = constraint_layer()
+
 
     def forward(self, X:torch.Tensor, active_indices: List, apply_constraint=True) -> torch.Tensor:
         """
@@ -111,15 +145,14 @@ class FBPINN_ansatz(nn.Module):
         out = torch.zeros(X.shape[0], 1, device=X.device, dtype=X.dtype)
 
         # Normalised weights
-        weights = torch.cat([window_i(X, self.subdomains[i]) for i in active_indices], dim=-1)  # (N, n_sub)
+        weights = torch.cat([self.window[i](X) for i in active_indices], dim=-1)  # (N, n_sub)
         weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)               # normalise
 
 
         # norm = torch.zeros((X.shape[0], 1), device=X.device, dtype=X.dtype)
         for i, site in enumerate(active_indices):
-            sub  = self.subdomains[i]
             # norm_i(X)  →  local coords
-            x_loc = norm_i(X, sub)                        # (N, D)
+            x_loc = self.norm(X)                        # (N, D)
 
             # NN_i  forward pass
             y_loc = self.subnets[site](x_loc)                # (N, out_dim)
@@ -132,7 +165,7 @@ class FBPINN_ansatz(nn.Module):
 
         # implement constraint layer
         if apply_constraint:
-            out = constraint_layer(X, out)
+            out = self.constraint_layer(X, out)
 
         return out
 
@@ -173,6 +206,11 @@ class FBPINN(object):
 
         # initialize FBPINN ansatz
         self.approximate_solution = networks
+
+        print(f"full model layout:\n{self.approximate_solution}")
+        print(f"number of subnets:{len(networks.subnets)}")
+
+        # os._exit(0)
         # self.approximate_solution =  FBPINN_ansatz(
                                      # subdomains=self.subdomains,
                                      # in_dim=self.input_dimension,
@@ -185,6 +223,7 @@ class FBPINN(object):
         for idx in range(len(self.subdomains)):
             for param in self.approximate_solution.subnets[idx].parameters():
                 param.requires_grad = False
+
         for name, param in self.approximate_solution.named_parameters():
             print(f"name{name}: {param.size()} Fixed: {not param.requires_grad}")
 
@@ -196,7 +235,7 @@ class FBPINN(object):
 
         # mean square loss function
         self.loss = nn.MSELoss()
-
+        # sample data points
         self.assemble_datasets(domain)
 
         self.nu = nu # viscocity (model parameter)
@@ -253,6 +292,10 @@ class FBPINN(object):
         """
         collect the collocation points within the subdomain of each the active sites (from the scheduler)
         """
+
+        # check if the subdomain data is consistent with active subnets
+        assert self.manager.get_active_indices() == active_site
+
         global_input, global_output = next(iter(self.training_set))
 
         local_data = {}
@@ -275,7 +318,7 @@ class FBPINN(object):
 
         return input, output
 
-    def build_subdomain_optimizer(self, optimizer, lr=1e-3):
+    def build_subdomain_optimizer(self, optimizer, lr=1e-4):
         """
         Build optimizer that only includes parameters of ACTIVE subdomains.
         Re-called whenever active set changes.
@@ -284,7 +327,6 @@ class FBPINN(object):
         active_params = []
         for idx in manager.get_active_indices():
             active_params += list(self.approximate_solution.subnets[idx].parameters())
-        active_params += self.approximate_solution.unnorm.parameters()
 
         if not active_params:
             return None
@@ -300,6 +342,8 @@ class FBPINN(object):
             print("  FBPINN Training with Dynamic Subdomain Scheduling")
             print("═" * 60 + "\n")
 
+        # turn to taining mode
+        self.approximate_solution.train()
         # loss_subdomain = []
         global_loss = {"loss": []}
 
@@ -309,7 +353,7 @@ class FBPINN(object):
         for epoch in range(num_epochs):
 
             # ── Rebuild optimizer for current active set ─────────────────────
-            subdomain_optimizer = self.build_subdomain_optimizer(optimizer, lr=1e-3)
+            subdomain_optimizer = self.build_subdomain_optimizer(optimizer, lr=1e-4)
 
 
             active_indices = manager.get_active_indices()
@@ -356,6 +400,7 @@ class FBPINN(object):
 
         print("\n  Training Complete!")
         manager.print_states()
+
         return global_loss
 
 
@@ -389,6 +434,10 @@ class FBPINN(object):
 
     def fit(self, num_epochs, optimizer, verbose=True):
         """train FBPINN globally"""
+        # active all parameters
+        for idx in range(len(self.subdomains)):
+            for param in self.approximate_solution.subnets[idx].parameters():
+                param.requires_grad = True
 
         history = {"loss": []}
         active_indices = np.arange(len(self.subdomains))
@@ -396,26 +445,21 @@ class FBPINN(object):
         # loop over epochs
         for epoch in range(num_epochs):
             for j, (inp_train, u_train) in enumerate(self.training_set):
-                if verbose:
-                    print(f"########### epoch:{epoch}, batch:{j}:")
                 def closure():
                     optimizer.zero_grad()
                     # compute loss
                     training_data = (inp_train, u_train)
-                    PDE_loss = self.compute_loss(training_data, active_indices, verbose=verbose)
+                    PDE_loss = self.compute_loss(training_data, active_indices, verbose=False)
                     # store loss
                     history["loss"].append(PDE_loss.item())
                     # back propagation
                     PDE_loss.backward()
                     return PDE_loss
-                # update weights
                 optimizer.step(closure=closure)
-
-        # store loss function data to json file
-        import pandas as pd
-        df = pd.DataFrame(history)
-        df.sort_index().to_json()
-        # df.to_json("FBPINN_loss_function.json")
+                # update weights
+                if verbose:
+                    tmp = history["loss"][-1]
+                    print(f"########### epoch:{epoch}, batch:{j}: loss:{tmp:.4f}")
 
         return history
 
@@ -425,7 +469,7 @@ if __name__ == '__main__':
 
     subdomains =  generate_rectangular_bounds(
                            dimensions = 2,
-                           num_subdomains = [2, 3],
+                           num_subdomains = [2, 4],
                            ranges = [(0, 1), (-1 ,1)],
                            overlap = 0.2,
                            overlap_mode = "absolute")
@@ -458,7 +502,7 @@ if __name__ == '__main__':
     x,y = np.meshgrid(x, y)
     inputs = torch.from_numpy(np.stack([x.flatten(), y.flatten()], axis=-1)).float()
     inputs.requires_grad = True
-    u_pred = model(inputs)                               # (N, 1)
+    u_pred = model(inputs, np.arange(len(subdomains)))                               # (N, 1)
 
     # ── Derivative via autograd (needed for PDE residual)
     du_dX = torch.autograd.grad(
@@ -474,11 +518,13 @@ if __name__ == '__main__':
     # plot window function
     import matplotlib.pyplot as plt
 
-    fig, axs = plt.subplots(1, 6, figsize=(60, 8), dpi=150)
+    fig, axs = plt.subplots(1, len(subdomains), figsize=(60, 8), dpi=150)
 
     for i, sub in enumerate(subdomains):
         w = window_i(inputs, sub).reshape((100,100))
         img = axs[i].pcolormesh(x, y, w.detach().numpy(), cmap="rainbow")
+        axs[i].set_xlabel("t")
+        axs[i].set_ylabel("x")
         cbar = fig.colorbar(img, ax=axs[i])
 
 
