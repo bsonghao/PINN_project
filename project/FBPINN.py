@@ -17,33 +17,32 @@ class norm(nn.Module):
     One scalar pair shared across all subnets
     (can also be per-subnet).
     """
-    def __init__(self):
-        super(norm, self).__init__()
+    def __init__(self, sub):
+        super().__init__()
+        self.sub = sub
 
     def forward(self, X: torch.tensor) -> torch.tensor:
         """
         Map X ∈ [x_min, x_max]  →  [-1, 1]  (per dimension).
         X : (N, D)
         """
-        x_mu = torch.mean(X)
-        x_std = torch.std(X)
-        return (X - x_mu) / x_std        # (N, D)
+        return (X - self.sub["center"]) / self.sub["width"]        # (N, D)
 
 
 class unnorm(nn.Module):
     """
-    y_out = (y_nn-y_nn_mean)/y_nn_std
+    y_out = y_nn * scale + shift
     One scalar pair shared across all subnets
     (can also be per-subnet).
     """
     def __init__(self):
         super(unnorm, self).__init__()
+        self.scale = nn.Parameter(torch.ones(1))
+        self.shift = nn.Parameter(torch.zeros(1))
 
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
-        y_mu = torch.mean(y)
-        y_std = torch.std(y)
-        return (y - y_mu) / y_std        # (N, D)
+        return y * self.scale+ self.shift        # (N, D)
 
 class window_i(nn.Module):
     """
@@ -63,7 +62,7 @@ class window_i(nn.Module):
         Returns shape (N, 1) — scalar weight per point.
         """
         sub = self.sub
-        s     = 2.0 / (2*sub["overlap"] * sub["width"] + 1e-8)    # steepness
+        s     = 4.0 / (2*sub["overlap"] * sub["width"] + 1e-8)    # steepness
         left  = torch.sigmoid( s * (X - sub["core_min"]))        # (N, D)
         right = torch.sigmoid( s * (sub["core_max"]- X))        # (N, D)
         w     = (left * right).prod(dim=-1, keepdim=True)  # product over dims → (N,1)
@@ -127,10 +126,13 @@ class FBPINN_ansatz(nn.Module):
             for sub in subdomains
         ])
 
-        # norm
-        self.norm = norm()
-
         # unnorm layer  (can be per-subnet: nn.ModuleList of Unnorm)
+        self.norm = nn.ModuleList([
+              norm(sub)
+              for sub in subdomains
+        ])
+
+        # unnorm layer
         self.unnorm = unnorm()
 
         # constraint layer
@@ -152,7 +154,7 @@ class FBPINN_ansatz(nn.Module):
         # norm = torch.zeros((X.shape[0], 1), device=X.device, dtype=X.dtype)
         for i, site in enumerate(active_indices):
             # norm_i(X)  →  local coords
-            x_loc = self.norm(X)                        # (N, D)
+            x_loc = self.norm[site](X)                        # (N, D)
 
             # NN_i  forward pass
             y_loc = self.subnets[site](x_loc)                # (N, out_dim)
@@ -288,34 +290,26 @@ class FBPINN(object):
 
         return input, output
 
-    def assemble_subdomain_data(self, active_site, tol=1e-10, verbose=False):
+    def assemble_subdomain_data(self, active_sites, tol=1e-10, verbose=False):
         """
         collect the collocation points within the subdomain of each the active sites (from the scheduler)
         """
 
-        # check if the subdomain data is consistent with active subnets
-        assert self.manager.get_active_indices() == active_site
-
         global_input, global_output = next(iter(self.training_set))
 
-        local_data = {}
         mask_all = torch.zeros(self.n_sample, dtype=bool)
 
-        for idx in active_site:
+        for idx in active_sites:
             mask = torch.ones(self.n_sample, dtype=bool)
             sub = self.subdomains[idx]
             for dim in range(self.input_dimension):
                 mask &= global_input[:,dim] <= sub["extended_max"][dim]+tol # bitwise and operation
                 mask &= global_input[:,dim] >= sub["extended_min"][dim]-tol # bitwise and operation
-            mask_all |= mask # bitwise or operation
+            mask_all |= mask
 
         active_indices = torch.where(mask_all)
         input  = global_input[active_indices]
         output = torch.zeros((input.shape[0], 1))
-
-        if verbose:
-            print(f"training for subdomain {active_site}: {input.shape}")
-
         return input, output
 
     def build_subdomain_optimizer(self, optimizer, lr=1e-4):
@@ -521,7 +515,8 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(1, len(subdomains), figsize=(60, 8), dpi=150)
 
     for i, sub in enumerate(subdomains):
-        w = window_i(inputs, sub).reshape((100,100))
+        window = window_i(sub)
+        w = window(inputs).reshape((100,100))
         img = axs[i].pcolormesh(x, y, w.detach().numpy(), cmap="rainbow")
         axs[i].set_xlabel("t")
         axs[i].set_ylabel("x")

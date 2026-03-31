@@ -23,7 +23,7 @@ def main():
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
-    num_grid = [3, 3]
+    num_grid = [2, 3]
     overlap = 0.1
 
     # viscosity parameter
@@ -33,13 +33,13 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 90000
+    n_epochs = 10000
 
 
     # parameters for scheduler
-    global_flag = False
-    activation_interval = 3000
-    fixed_after_epochs  = 3000
+    global_flag = True
+    activation_interval = 2000
+    fixed_after_epochs  = 2000
     convergence_tol     = 1e-8
     convergence_window  = 5
     num_per_column      = num_grid[1]
@@ -63,29 +63,6 @@ def main():
                           out_dim=1,
                           hidden = neurons,
                           layers = n_hidden,)
-
-    # setup scheculer
-    # ── Choose a Scheduler ─────────────────────────────────────────────────
-    # manager   = SubdomainStateManager(len(subdomains), network.subnets)
-
-    # Swap any of these three strategies:
-    # scheduler = SequentialScheduler(
-        # manager,
-        # activation_interval = 2,
-        # fix_after_epochs    = 2,
-        # convergence_tol     = 1e-4
-    # )
-
-    # scheduler = ColumnScheduler(
-            # manager,
-            # activation_interval = 20,
-            # fix_after_epochs    = 40,
-            # convergence_tol     = 1e-8,
-            # num_per_column      = num_grid[1]
-        # )
-
-
-
 
     # FBPINN training
     model = FBPINN(subdomains,
@@ -139,7 +116,7 @@ def main():
         # os._exit(0)
 
     # plot results
-    model.approximate_solution.eval()
+    # model.approximate_solution.eval()
     plotting_FBPINN(model, loss, domain, num_grid=400)
 
 
