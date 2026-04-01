@@ -19,11 +19,12 @@ def main():
 
     # NN parameters
     neurons, n_hidden = 16, 2 # 16 neurons per hidden layer and 2 hidden layers (4 layers in total)
+    unnorm_para = (1, 0)
 
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
-    num_grid = [2, 3]
+    num_grid = [5, 3]
     overlap = 0.1
 
     # viscosity parameter
@@ -33,13 +34,13 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 10000
+    n_epochs = 1000
 
 
     # parameters for scheduler
-    global_flag = True
-    activation_interval = 2000
-    fixed_after_epochs  = 2000
+    global_flag = False
+    activation_interval = 200
+    fixed_after_epochs  = 200
     convergence_tol     = 1e-8
     convergence_window  = 5
     num_per_column      = num_grid[1]
@@ -62,7 +63,8 @@ def main():
                           in_dim=2,
                           out_dim=1,
                           hidden = neurons,
-                          layers = n_hidden,)
+                          layers = n_hidden,
+                          unnorm_para = unnorm_para,)
 
     # FBPINN training
     model = FBPINN(subdomains,
@@ -99,7 +101,7 @@ def main():
                         verbose=True)
             # store loss function data
             df = pd.DataFrame(loss)
-            df.to_json("local_FBPINN_loss_function.json")
+            df.to_json("global_FBPINN_loss_function.json")
         else:
             loss = model.fit_subdomain(num_epochs=n_epochs,
                                    optimizer= optim.Adam,

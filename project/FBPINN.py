@@ -35,10 +35,9 @@ class unnorm(nn.Module):
     One scalar pair shared across all subnets
     (can also be per-subnet).
     """
-    def __init__(self):
+    def __init__(self, unnorm_para):
         super(unnorm, self).__init__()
-        self.scale = nn.Parameter(torch.ones(1))
-        self.shift = nn.Parameter(torch.zeros(1))
+        self.scale, self.shift= unnorm_para
 
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
@@ -105,6 +104,7 @@ class FBPINN_ansatz(nn.Module):
     def __init__(
         self,
         subdomains: List[dict],
+        unnorm_para: tuple,
         in_dim:     int = 1,
         out_dim:    int = 1,
         hidden:     int = 32,
@@ -133,7 +133,7 @@ class FBPINN_ansatz(nn.Module):
         ])
 
         # unnorm layer
-        self.unnorm = unnorm()
+        self.unnorm = unnorm(unnorm_para)
 
         # constraint layer
         self.constraint_layer = constraint_layer()
@@ -347,7 +347,7 @@ class FBPINN(object):
         for epoch in range(num_epochs):
 
             # ── Rebuild optimizer for current active set ─────────────────────
-            subdomain_optimizer = self.build_subdomain_optimizer(optimizer, lr=1e-4)
+            subdomain_optimizer = self.build_subdomain_optimizer(optimizer, lr=1e-3)
 
 
             active_indices = manager.get_active_indices()
