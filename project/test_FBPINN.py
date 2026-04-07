@@ -3,12 +3,15 @@ import torch.optim as optim
 import numpy as np
 import pandas as pd
 import os
+import time
 
-from FBPINN import FBPINN, FBPINN_ansatz
+from FBPINN import FBPINN, FBPINN_fast
+from FBPINN_trainer import FBPINN_trainer
 from exact_solution import exact_solution
 from generate_bound import generate_rectangular_bounds, print_subdomains
 from plot_result import plotting_FBPINN
 from schedule import SequentialScheduler, ColumnScheduler, SubdomainStateManager
+
 
 def main():
     # input parameter for PINN
@@ -24,7 +27,7 @@ def main():
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
-    num_grid = [5, 3]
+    num_grid = [10, 10]
     overlap = 0.1
 
     # viscosity parameter
@@ -34,11 +37,11 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 1000
+    n_epochs = 10
 
 
     # parameters for scheduler
-    global_flag = False
+    global_flag = True
     activation_interval = 200
     fixed_after_epochs  = 200
     convergence_tol     = 1e-8
@@ -58,16 +61,29 @@ def main():
     # os._exit(0)
 
     # build FBPINN ansatz
-    network = FBPINN_ansatz(
-                          subdomains = subdomains,
-                          in_dim=2,
-                          out_dim=1,
-                          hidden = neurons,
-                          layers = n_hidden,
-                          unnorm_para = unnorm_para,)
+    if True:
+        network = FBPINN(
+                     subdomains = subdomains,
+                     in_dim=2,
+                     out_dim=1,
+                     hidden = neurons,
+                     layers = n_hidden,
+                     unnorm_para = unnorm_para,
+                     )
+    else:
+        # build FBPINN ansatz with parallelized FBPINN ansatz using vmap
+        network = FBPINN_fast(
+             subdomains = subdomains,
+             in_dim=2,
+             out_dim=1,
+             hidden = neurons,
+             layers = n_hidden,
+             unnorm_para = unnorm_para,
+             )
 
     # FBPINN training
-    model = FBPINN(subdomains,
+    model = FBPINN_trainer(
+                   subdomains,
                    network,
                    n_sample,
                    n_batches,
@@ -96,9 +112,12 @@ def main():
             # ADAM optimizer
             optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
                                         lr=float(0.001))
+            start_time = time.time()
             loss = model.fit(num_epochs=n_epochs,
                         optimizer=optimizer_ADAM,
                         verbose=True)
+            end_time = time.time()
+            print(f"It takes {end_time-start_time:.3f} s to train FBPINN for {n_epochs:d} epoches")
             # store loss function data
             df = pd.DataFrame(loss)
             df.to_json("global_FBPINN_loss_function.json")
