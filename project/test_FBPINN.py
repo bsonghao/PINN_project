@@ -11,7 +11,7 @@ from exact_solution import exact_solution
 from generate_bound import generate_rectangular_bounds, print_subdomains
 from plot_result import plotting_FBPINN
 from schedule import SequentialScheduler, ColumnScheduler, SubdomainStateManager
-
+from problems import Burgers2D
 
 def main():
     # input parameter for PINN
@@ -27,7 +27,7 @@ def main():
     # define physics domain
     domain = [(0., 1.), (-1., 1.)] # time domain x space domain
     # parameters to define subdomains
-    num_grid = [10, 10]
+    num_grid = [3, 2]
     overlap = 0.1
 
     # viscosity parameter
@@ -37,7 +37,10 @@ def main():
     # batch parameters
     n_batches = 1
     # number of epochs
-    n_epochs = 10
+    n_epochs = 50000
+
+    # setup problem
+    problem = Burgers2D(nu)
 
 
     # parameters for scheduler
@@ -61,7 +64,7 @@ def main():
     # os._exit(0)
 
     # build FBPINN ansatz
-    if True:
+    if False:
         network = FBPINN(
                      subdomains = subdomains,
                      in_dim=2,
@@ -83,11 +86,11 @@ def main():
 
     # FBPINN training
     model = FBPINN_trainer(
+                   problem,
                    subdomains,
                    network,
                    n_sample,
                    n_batches,
-                   nu,
                    input_dimension,
                    activation_interval,
                    fixed_after_epochs,
@@ -96,7 +99,7 @@ def main():
                    num_per_column,
                    SubdomainStateManager,
                    ColumnScheduler)
-    # print(f"model layers,\n{model.approximate_solution}")
+    print(f"model layers,\n{model.approximate_solution}")
     # os._exit(0)
 
     if True:
@@ -112,11 +115,11 @@ def main():
             # ADAM optimizer
             optimizer_ADAM = optim.Adam(model.approximate_solution.parameters(),
                                         lr=float(0.001))
-            start_time = time.time()
+            start_time = time.perf_counter()
             loss = model.fit(num_epochs=n_epochs,
                         optimizer=optimizer_ADAM,
                         verbose=True)
-            end_time = time.time()
+            end_time = time.perf_counter()
             print(f"It takes {end_time-start_time:.3f} s to train FBPINN for {n_epochs:d} epoches")
             # store loss function data
             df = pd.DataFrame(loss)
@@ -132,7 +135,7 @@ def main():
         model.save_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
     else:
         model.load_model(path="/Users/pauliebao/AI_for_chemistry/PINN_problem/PINN_project/results/FBPINN_burger.th")
-        loss = pd.read_json("FBPINN_loss_function.json").sort_index()
+        loss = pd.read_json("global_FBPINN_loss_function.json").sort_index()
         # print(loss)
         # os._exit(0)
 

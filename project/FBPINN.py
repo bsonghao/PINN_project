@@ -18,15 +18,23 @@ class norm(nn.Module):
     One scalar pair shared across all subnets
     (can also be per-subnet).
     """
-    def __init__(self, sub):
+    def __init__(self, sub, device):
         super().__init__()
         self.sub = sub
+        for key in self.sub.keys():
+            if key != "index":
+                self.sub[key] = self.sub[key].to(device)
 
-    def forward(self, X: torch.tensor) -> torch.tensor:
+    def forward(self, X: torch.tensor, predict_flag=False) -> torch.tensor:
         """
         Map X ∈ [x_min, x_max]  →  [-1, 1]  (per dimension).
         X : (N, D)
         """
+        # make sure that the inputs and parameters are on the sampe device
+        for key in self.sub.keys():
+            if key != "index":
+                self.sub[key] = self.sub[key].to(X.device.type)
+
         return (X - self.sub["center"]) / self.sub["width"]  * 2.0     # (N, D)
 
 
@@ -48,11 +56,15 @@ class window_i(nn.Module):
     """
     window function for FBPINN
     """
-    def __init__(self, sub):
+    def __init__(self, sub, device):
         super().__init__()
         self.sub = sub
+        for key in self.sub.keys():
+            if key != "index":
+                self.sub[key] = self.sub[key].to(device)
 
-    def forward(self, X: torch.Tensor) -> torch.Tensor:
+
+    def forward(self, X: torch.Tensor, predict_flag=False) -> torch.Tensor:
         """
         Smooth bump window based on a product of 1-D sigmoids:
 
@@ -61,32 +73,17 @@ class window_i(nn.Module):
         where s controls steepness (overlap controls effective width).
         Returns shape (N, 1) — scalar weight per point.
         """
-        sub = self.sub
-        s     = 4.0 / (2*sub["overlap"] * sub["width"] + 1e-8)    # steepness
-        left  = torch.sigmoid( s * (X - sub["core_min"]))        # (N, D)
-        right = torch.sigmoid( s * (sub["core_max"]- X))        # (N, D)
+        # make sure that the inputs and parameters are on the sampe device
+        for key in self.sub.keys():
+            if key != "index":
+                self.sub[key] = self.sub[key].to(X.device.type)
+
+        s     = 4.0 / (2*self.sub["overlap"] * self.sub["width"] + 1e-8)    # steepness
+        left  = torch.sigmoid( s * (X - self.sub["core_min"]))        # (N, D)
+        right = torch.sigmoid( s * (self.sub["core_max"]- X))        # (N, D)
         w     = (left * right).prod(dim=-1, keepdim=True)  # product over dims → (N,1)
         return w
 
-
-class constraint_layer(nn.Module):
-    """layer the inforce the hard constraints for BC"""
-    def __init__(self):
-        super(constraint_layer, self).__init__()
-
-    def forward(self, X:torch.tensor, out:torch.tensor) -> torch.tensor:
-        """
-        Layer that implement hard BC constraint
-        f(u) = -sin(pi*x) + tanh(x+1)tanh(x-1)*tanh(t) * NN
-        """
-        output = -torch.sin(np.pi*X[:,1]).reshape(-1,1)
-
-        factor = torch.tanh(X[:,1] + 1.) * torch.tanh(X[:,1] - 1.) * torch.tanh(X[:,0])
-
-
-        output +=  factor.reshape(-1, 1) * out
-
-        return output
 
 class FBPINN(nn.Module):
     """
@@ -126,41 +123,41 @@ class FBPINN(nn.Module):
             for _ in subdomains
         ])
 
+        device =  torch.device("mps" if torch.backends.mps.is_available() else "cpu")
         # window function layer
         self.window = nn.ModuleList([
-            window_i(sub)
+            window_i(sub, device)
             for sub in subdomains
         ])
 
         # unnorm layer  (can be per-subnet: nn.ModuleList of Unnorm)
         self.norm = nn.ModuleList([
-              norm(sub)
+              norm(sub, device)
               for sub in subdomains
         ])
 
         # unnorm layer
         self.unnorm = unnorm(unnorm_para)
 
-        # constraint layer
-        self.constraint_layer = constraint_layer()
-
-
-    def forward(self, X:torch.Tensor, active_indices, apply_constraint=True) -> torch.Tensor:
+    def forward(self, X:torch.Tensor, active_indices, predict_flag=False) -> torch.Tensor:
         """
         X : (N, D)  — collocation / query points
         Returns (N, out_dim)
         """
+        if predict_flag:
+            X = X.to("cpu")
+
         out = torch.zeros(X.shape[0], 1, device=X.device, dtype=X.dtype)
 
         # Normalised weights
-        weights = torch.cat([self.window[i](X) for i in range(self.n_sub)], dim=-1)  # (N, n_sub)
+        weights = torch.cat([self.window[i](X, predict_flag) for i in range(self.n_sub)], dim=-1)  # (N, n_sub)
         weights = weights / (weights.sum(dim=-1, keepdim=True) + 1e-8)               # normalise
 
 
         # norm = torch.zeros((X.shape[0], 1), device=X.device, dtype=X.dtype)
         for i in range(self.n_sub):
             # norm_i(X)  →  local coords
-            x_loc = self.norm[i](X)                        # (N, D)
+            x_loc = self.norm[i](X, predict_flag)                        # (N, D)
 
             # NN_i  forward pass
             y_loc = self.subnets[i](x_loc)                # (N, out_dim)
@@ -170,10 +167,6 @@ class FBPINN(nn.Module):
 
             # accumulate weighted contribution
             out +=  weights[:,i].reshape(-1,1) * y_glo                         # (N, out_dim)
-
-        # implement constraint layer
-        if apply_constraint:
-            out = self.constraint_layer(X, out)
 
         return out
 
@@ -213,6 +206,14 @@ class FBPINN_fast(nn.Module):
         self.low_ext  = torch.stack([sub["extended_min"] for sub in subdomains], dim=0)  # (n_sub, in_dim)
         self.hi_ext   = torch.stack([sub["extended_max"] for sub in subdomains], dim=0)  # (n_sub, in_dim)
 
+        # move to gpus
+        device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+        self.low_core = self.low_core.to(device)
+        self.hi_core =self.hi_core.to(device)
+        self.low_ext = self.low_ext.to(device)
+        self.hi_ext = self.hi_ext.to(device)
+
+
         # ── Create one NeuralNet per subdomain ──────────────────────
         # Give each a different seed so they start with different weights
         # one small network per subdomain
@@ -228,21 +229,6 @@ class FBPINN_fast(nn.Module):
             ])
             for _ in subdomains
         ])
-
-        # window function layer
-        self.window = nn.ModuleList([
-            window_i(sub)
-            for sub in subdomains
-        ])
-
-        # unnorm layer  (can be per-subnet: nn.ModuleList of Unnorm)
-        self.norm = nn.ModuleList([
-              norm(sub)
-              for sub in subdomains
-        ])
-
-        # constraint layer
-        self.constraint_layer = constraint_layer()
 
         # ── Stack parameters for vmap ───────────────────────────────
         # params_stacked[key] has shape (n_subdomains, ...)
@@ -353,14 +339,54 @@ class FBPINN_fast(nn.Module):
         center = (lo_ext + hi_ext) / 2.
         width = (hi_ext - lo_ext) / 2.
         return (X - center) / width       # (N, D)
-    # ── vmap-powered parallel forward ────────────────────────────────
 
-    def _vmapped_forward(self, x: torch.Tensor) -> torch.Tensor:
+    def _single_domain_forward(self,
+                               params: dict,
+                               buffers: dict,
+                               base_model: nn.Module,
+                               x: torch.Tensor,
+                               lo_core:torch.Tensor,
+                               hi_core:torch.Tensor,
+                               lo_ext:torch.Tensor,
+                               hi_ext:torch.Tensor) -> torch.Tensor:
+        """
+        Evaluate `base_model` on `x` using externally supplied `params`.
+        This is the function that vmap will vectorize over.
+
+        Args:
+            params      : dict of parameter tensors (un-batched, for ONE subnet)
+            buffers     : dict of buffer  tensors  (un-batched, for ONE subnet)
+            base_model  : stateless reference model
+            x           : input tensor of shape (n_points, input_dim)
+            lo_core     : lower bound of the core domain
+            hi_core     : upper bound of the core domain
+            lo_ext      : lower bound of the extended domain
+            hi_ext      : upper bound of the extended domain
+
+        Returns:
+            weight tensor of shape (n_points, 1), output tensor of shape (n_points, output_dim)
+        """
+        weight = self.window_vectorize(x, lo_core, hi_core, lo_ext, hi_ext)
+        out = self.norm_vectorize(x, lo_ext, hi_ext)
+        out = functional_call(base_model, (params, buffers), (out,))
+        out *= weight
+        return weight, out
+    # ── vmap-powered parallel forward ────────────────────────────────
+    def _vmapped_forward(self,
+                         x: torch.Tensor,
+                         lo_core: torch.Tensor,
+                         hi_core: torch.Tensor,
+                         lo_ext: torch.Tensor,
+                         hi_ext: torch.Tensor) -> torch.Tensor:
         """
         Evaluate ALL subnets on the SAME input x in parallel using vmap.
 
         Args:
             x   : shape (n_points, input_dim)
+            lo_core  : lower bound of the core domain
+            hi_core  : upper bound of the core domain
+            lo_ext   : lower bound of the extended domain
+            hi_ext   : upper bound of the extended domain
 
         Returns:
             outputs : shape (n_subdomains, n_points, output_dim)
@@ -371,19 +397,19 @@ class FBPINN_fast(nn.Module):
         # vmap over the leading (subdomain) dimension of each param tensor
         # in_dims=0 for params/buffers; None for base_model and x (shared)
         batched_forward = vmap(
-            self._stateless_forward,
-            in_dims  = (0, 0, None, None),   # batch over params & buffers
-            out_dims = 0                      # stack outputs along dim 0
+            self._single_domain_forward,
+            in_dims  = (0, 0, None, None, 0, 0, 0, 0),   # batch over params & buffers
+            out_dims = (0, 0)                      # stack outputs along dim 0
         )
 
-        return batched_forward(params, buffers, base_model, x)
+        weights, outs = batched_forward(params, buffers, base_model, x, lo_core, hi_core, lo_ext, hi_ext)
+
+        return weights, outs
         # shape: (n_subdomains, n_points, output_dim)
-
-
 
     # ── Public forward ────────────────────────────────────────────────
 
-    def forward(self, x: torch.Tensor, active_indices, apply_constraint=True) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, active_indices, predict_flag=False) -> torch.Tensor:
         """
         Full FBPINN forward pass.
 
@@ -400,38 +426,10 @@ class FBPINN_fast(nn.Module):
         Returns:
             u : (n_points, output_dim)
         """
-        # ── Step 1: build normalized inputs for ALL subdomains ────────
-        # x_normalized: (n_subdomains, n_points, input_dim)
-        x_normalized = vmap(self.norm_vectorize,in_dims=(None, 0, 0),out_dims=0)(x, self.low_ext, self.hi_ext)
-        # shape: (n_subdomains, n_points, input_dim)
-
-        # ── Step 2: vmap over subdomains AND their inputs ─────────────
-        params, buffers = self._get_params_buffers()
-        base_model      = self._base_model
-
-        # Now vmap batches over (params, buffers, x_normalized) simultaneously
-        batched_forward = vmap(
-            self._stateless_forward,
-            in_dims  = (0, 0, None, 0),   # 0=subdomain batch for params, buffers, x_norm
-            out_dims = 0
-        )
-
-        subnet_outputs = batched_forward(
-            params, buffers, base_model, x_normalized
-        )
-        # shape: (n_subdomains, n_points, output_dim)
-
-
-        # ── Step 3 & 4: window and sum ────────────────────────────────
-        # Normalised weights
-        weights = vmap(self.window_vectorize, in_dims=(None, 0, 0, 0, 0), out_dims=0)(x, self.low_core, self.hi_core, self.low_ext, self.hi_ext)
-        weights = weights / (weights.sum(dim=0, keepdim=True) + 1e-8)  # (n_sub, N, output_dim)
-        u = (subnet_outputs * weights).sum(dim=0, keepdim=False) # (n_points, output_dim)
-
-        # ── Step 5: add constraint layer  ────────────────────────────────
-        if apply_constraint:
-            u = self.constraint_layer(x, u)
-
+        if predict_flag:
+            self.low_core, self.hi_core, self.low_ext, self.hi_ext = self.low_core.to("cpu"), self.hi_core.to("cpu"), self.low_ext.to("cpu"), self.hi_ext.to("cpu")
+        weights, outs = self._vmapped_forward(x, self.low_core, self.hi_core, self.low_ext, self.hi_ext)
+        u = outs.sum(dim=0, keepdim=False) / (weights.sum(dim=0, keepdim=False) + 1e-8)
 
         return u
 
@@ -484,8 +482,8 @@ if __name__ == '__main__':
     x,y = np.meshgrid(x, y)
     inputs = torch.from_numpy(np.stack([x.flatten(), y.flatten()], axis=-1)).float()
     inputs.requires_grad = True
-    u_pred = model(inputs, np.arange(18), apply_constraint=True)                               # (N, 1)
-    u_pred_fast = model_fast(inputs, np.arange(18), apply_constraint=True)
+    u_pred = model(inputs, np.arange(18))                               # (N, 1)
+    u_pred_fast = model_fast(inputs, np.arange(18), predict_flag=True)
     print(torch.mean((u_pred-u_pred_fast)**2))
     # assert torch.allclose(weights, weights_fast)
     # assert torch.allclose(u_pred, u_pred_fast)

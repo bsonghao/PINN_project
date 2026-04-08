@@ -4,8 +4,8 @@ from scipy.special import roots_hermite
 
 def exact_solution(inputs, nu=0.01/np.pi, N=100):
     """exact solution for Burgers's equation"""
-    T = inputs[:,0].numpy()
-    X = inputs[:,1].numpy()
+    T = inputs[:,0].detach().numpy()
+    X = inputs[:,1].detach().numpy()
 
     eta_base, w = roots_hermite(N)                  # (N,), (N,)
 
