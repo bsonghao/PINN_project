@@ -108,7 +108,7 @@ $\mathit{C}$ is a constraining operator which adds the "hard constraints" bounda
 In our specific case:
 
 ```math
-\mathit{C}\left(\overline{NN}(X;\theta)\right) = -\sin(\pi x) + \tanh(x+1)\tanh(x-1)\overline{NN}(X;\theta)
+\mathit{C}\left(\overline{NN}(X;\theta)\right) = -\sin(\pi x) + \tanh(x+1)\tanh(x-1)\tanh(t)\overline{NN}(X;\theta)
 ```
 $w(X)$ is the window function that confined the input vector locally with in within the subdomain.
 
