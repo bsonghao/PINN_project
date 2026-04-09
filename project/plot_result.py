@@ -200,7 +200,7 @@ def plotting_FBPINN(model, loss, domain, num_grid=1000):
         x[:,1] = torch.linspace(x_lo, x_hi, num_grid)
         u_pinn = model.predict(x, active_sites).reshape(-1, )
         u_exact = exact_solution(x).reshape(-1,)
-        axs[i].scatter(x[:,1].detach().numpy(), u_pinn.detach().numpy(), label="prediction", color="red", linewidth=10, alpha=.5)
+        axs[i].plot(x[:,1].detach().numpy(), u_pinn.detach().numpy(), label="prediction", color="red", linestyle=":", linewidth=10, alpha=.5)
         axs[i].plot(x[:,1].detach().numpy(), u_exact.detach().numpy(), label="exact", color="blue", linestyle="-", linewidth=10, alpha=.5)
         axs[i].set_title(f"t={t_cs:.2f}", fontsize=40)
         axs[i].legend(fontsize=20)

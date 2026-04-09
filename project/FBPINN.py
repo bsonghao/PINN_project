@@ -139,7 +139,7 @@ class FBPINN(nn.Module):
         # unnorm layer
         self.unnorm = unnorm(unnorm_para)
 
-    def forward(self, X:torch.Tensor, active_indices, predict_flag=False) -> torch.Tensor:
+    def forward(self, X:torch.Tensor, predict_flag=False) -> torch.Tensor:
         """
         X : (N, D)  — collocation / query points
         Returns (N, out_dim)
@@ -409,7 +409,7 @@ class FBPINN_fast(nn.Module):
 
     # ── Public forward ────────────────────────────────────────────────
 
-    def forward(self, x: torch.Tensor, active_indices, predict_flag=False) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, predict_flag=False) -> torch.Tensor:
         """
         Full FBPINN forward pass.
 
@@ -428,6 +428,7 @@ class FBPINN_fast(nn.Module):
         """
         if predict_flag:
             self.low_core, self.hi_core, self.low_ext, self.hi_ext = self.low_core.to("cpu"), self.hi_core.to("cpu"), self.low_ext.to("cpu"), self.hi_ext.to("cpu")
+
         weights, outs = self._vmapped_forward(x, self.low_core, self.hi_core, self.low_ext, self.hi_ext)
         u = outs.sum(dim=0, keepdim=False) / (weights.sum(dim=0, keepdim=False) + 1e-8)
 
@@ -482,8 +483,8 @@ if __name__ == '__main__':
     x,y = np.meshgrid(x, y)
     inputs = torch.from_numpy(np.stack([x.flatten(), y.flatten()], axis=-1)).float()
     inputs.requires_grad = True
-    u_pred = model(inputs, np.arange(18))                               # (N, 1)
-    u_pred_fast = model_fast(inputs, np.arange(18), predict_flag=True)
+    u_pred = model(inputs)                               # (N, 1)
+    u_pred_fast = model_fast(inputs, predict_flag=True)
     print(torch.mean((u_pred-u_pred_fast)**2))
     # assert torch.allclose(weights, weights_fast)
     # assert torch.allclose(u_pred, u_pred_fast)
@@ -515,7 +516,7 @@ if __name__ == '__main__':
     fig, axs = plt.subplots(1, len(subdomains), figsize=(60, 8), dpi=150)
 
     for i, sub in enumerate(subdomains):
-        window = window_i(sub)
+        window = window_i(sub, "cpu")
         w = window(inputs).reshape((100,100))
         img = axs[i].pcolormesh(x, y, w.detach().numpy(), cmap="rainbow")
         axs[i].set_xlabel("t")
